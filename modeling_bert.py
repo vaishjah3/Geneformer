@@ -25,14 +25,75 @@ import torch
 import torch.utils.checkpoint
 from packaging import version
 from torch import nn
+# me ----------
+from losses import BCEDiceLoss, ComboBCEDiceLoss
+import torch
+import torch.nn as nn
+class FocalLoss(nn.Module):
+    def __init__(self, alpha=1, gamma=2, reduction='mean'):
+        super(FocalLoss, self).__init__()
+        self.alpha = alpha
+        self.gamma = gamma
+        self.reduction = reduction
+
+    def forward(self, logits, targets):
+        ce_loss = nn.functional.cross_entropy(logits, targets, reduction='none')
+        pt = torch.exp(-ce_loss)
+        focal_loss = (self.alpha * (1 - pt) ** self.gamma * ce_loss).mean()
+        
+        if self.reduction == 'none':
+            return focal_loss
+        elif self.reduction == 'mean':
+            return focal_loss.mean()
+        elif self.reduction == 'sum':
+            return focal_loss.sum()
+# class DiceLoss(nn.Module):
+#     def __init__(self, smooth=1e-6):
+#         super(DiceLoss, self).__init__()
+#         self.smooth = smooth
+
+#     def forward(self, logits, targets):
+#         # Convert logits to probabilities using sigmoid
+#         probs = torch.sigmoid(logits)
+
+#         # Check if targets are not one-hot encoded, then convert to one-hot encoding
+#         if targets.dim() == 1 or targets.size(-1) == 1:
+#             targets = nn.functional.one_hot(targets, num_classes=probs.size(-1))
+
+#         # Ensure logits and targets have the same shape
+#         if probs.size() != targets.size():
+#             raise ValueError(f"Shape mismatch: logits has shape {probs.size()} but targets has shape {targets.size()}")
+
+#         # Flatten the tensors
+#         probs_flat = probs.view(-1)
+#         targets_flat = targets.view(-1)
+
+#         # Calculate intersection and union
+#         intersection = (probs_flat * targets_flat).sum()
+#         union = probs_flat.sum() + targets_flat.sum()
+
+#         # Compute Dice coefficient
+#         dice_coefficient = (2. * intersection + self.smooth) / (union + self.smooth)
+
+#         # Return Dice loss
+#         return 1 - dice_coefficient
+
+# me ----------
+
 from torch.nn import BCEWithLogitsLoss, CrossEntropyLoss, MSELoss
 
-from ...activations import ACT2FN
-from ...modeling_attn_mask_utils import (
+import transformers
+
+# src/transformers/models/bert/modeling_bert.py
+
+# from transformers.activations import ACT2FN
+
+from transformers.activations import ACT2FN
+from transformers.modeling_attn_mask_utils import (
     _prepare_4d_attention_mask_for_sdpa,
     _prepare_4d_causal_attention_mask_for_sdpa,
 )
-from ...modeling_outputs import (
+from transformers.modeling_outputs import (
     BaseModelOutputWithPastAndCrossAttentions,
     BaseModelOutputWithPoolingAndCrossAttentions,
     CausalLMOutputWithCrossAttentions,
@@ -43,9 +104,9 @@ from ...modeling_outputs import (
     SequenceClassifierOutput,
     TokenClassifierOutput,
 )
-from ...modeling_utils import PreTrainedModel
-from ...pytorch_utils import apply_chunking_to_forward, find_pruneable_heads_and_indices, prune_linear_layer
-from ...utils import (
+from transformers.modeling_utils import PreTrainedModel
+from transformers.pytorch_utils import apply_chunking_to_forward, find_pruneable_heads_and_indices, prune_linear_layer
+from transformers.utils import (
     ModelOutput,
     add_code_sample_docstrings,
     add_start_docstrings,
@@ -54,7 +115,7 @@ from ...utils import (
     logging,
     replace_return_docstrings,
 )
-from .configuration_bert import BertConfig
+from transformers.models.bert.configuration_bert import BertConfig
 
 
 logger = logging.get_logger(__name__)
@@ -1726,10 +1787,12 @@ class BertForSequenceClassification(BertPreTrainedModel):
                 else:
                     loss = loss_fct(logits, labels)
             elif self.config.problem_type == "single_label_classification":
-                loss_fct = CrossEntropyLoss()
+                #loss_fct = CrossEntropyLoss()
+                loss_fct = DiceLoss() # me
                 loss = loss_fct(logits.view(-1, self.num_labels), labels.view(-1))
             elif self.config.problem_type == "multi_label_classification":
-                loss_fct = BCEWithLogitsLoss()
+                #loss_fct = BCEWithLogitsLoss()
+                loss_fct = BCEDiceLoss() # me
                 loss = loss_fct(logits, labels)
         if not return_dict:
             output = (logits,) + outputs[2:]
@@ -1905,7 +1968,10 @@ class BertForTokenClassification(BertPreTrainedModel):
 
         loss = None
         if labels is not None:
-            loss_fct = CrossEntropyLoss()
+            #loss_fct = CrossEntropyLoss() # me
+            #print('CE to BCEDice')
+            
+            loss_fct = FocalLoss() # me
             loss = loss_fct(logits.view(-1, self.num_labels), labels.view(-1))
 
         if not return_dict:

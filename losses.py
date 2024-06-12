@@ -2511,7 +2511,7 @@ https://github.com/SilmarilBearer/HausdorffLoss
 """
 from scipy.ndimage.morphology import distance_transform_edt as edt
 from scipy.ndimage import convolve
-import cv2
+#import cv2
 
 
 class HausdorffDTLoss(nn.Module):
@@ -2580,90 +2580,90 @@ class HausdorffDTLoss(nn.Module):
             return loss
 
 
-class HausdorffERLoss(nn.Module):
-    """Binary Hausdorff loss based on morphological erosion"""
+# class HausdorffERLoss(nn.Module):
+#     """Binary Hausdorff loss based on morphological erosion"""
 
-    def __init__(self, alpha=2.0, erosions=10, **kwargs):
-        super(HausdorffERLoss, self).__init__()
-        self.alpha = alpha
-        self.erosions = erosions
-        self.prepare_kernels()
+#     def __init__(self, alpha=2.0, erosions=10, **kwargs):
+#         super(HausdorffERLoss, self).__init__()
+#         self.alpha = alpha
+#         self.erosions = erosions
+#         self.prepare_kernels()
 
-    def prepare_kernels(self):
-        cross = np.array([cv2.getStructuringElement(cv2.MORPH_CROSS, (3, 3))])
-        bound = np.array([[[0, 0, 0], [0, 1, 0], [0, 0, 0]]])
+#     def prepare_kernels(self):
+#         cross = np.array([cv2.getStructuringElement(cv2.MORPH_CROSS, (3, 3))])
+#         bound = np.array([[[0, 0, 0], [0, 1, 0], [0, 0, 0]]])
 
-        self.kernel2D = cross * 0.2
-        self.kernel3D = np.array([bound, cross, bound]) * (1 / 7)
+#         self.kernel2D = cross * 0.2
+#         self.kernel3D = np.array([bound, cross, bound]) * (1 / 7)
 
-    @torch.no_grad()
-    def perform_erosion(self, pred: np.ndarray, target: np.ndarray, debug) -> np.ndarray:
-        bound = (pred - target) ** 2
+#     @torch.no_grad()
+#     def perform_erosion(self, pred: np.ndarray, target: np.ndarray, debug) -> np.ndarray:
+#         bound = (pred - target) ** 2
 
-        if bound.ndim == 5:
-            kernel = self.kernel3D
-        elif bound.ndim == 4:
-            kernel = self.kernel2D
-        else:
-            raise ValueError(f"Dimension {bound.ndim} is nor supported.")
+#         if bound.ndim == 5:
+#             kernel = self.kernel3D
+#         elif bound.ndim == 4:
+#             kernel = self.kernel2D
+#         else:
+#             raise ValueError(f"Dimension {bound.ndim} is nor supported.")
 
-        eroted = np.zeros_like(bound)
-        erosions = []
+#         eroted = np.zeros_like(bound)
+#         erosions = []
 
-        for batch in range(len(bound)):
+#         for batch in range(len(bound)):
 
-            # debug
-            erosions.append(np.copy(bound[batch][0]))
+#             # debug
+#             erosions.append(np.copy(bound[batch][0]))
 
-            for k in range(self.erosions):
+#             for k in range(self.erosions):
 
-                # compute convolution with kernel
-                dilation = convolve(bound[batch], kernel, mode="constant", cval=0.0)
+#                 # compute convolution with kernel
+#                 dilation = convolve(bound[batch], kernel, mode="constant", cval=0.0)
 
-                # apply soft thresholding at 0.5 and normalize
-                erosion = dilation - 0.5
-                erosion[erosion < 0] = 0
+#                 # apply soft thresholding at 0.5 and normalize
+#                 erosion = dilation - 0.5
+#                 erosion[erosion < 0] = 0
 
-                if erosion.ptp() != 0:
-                    erosion = (erosion - erosion.min()) / erosion.ptp()
+#                 if erosion.ptp() != 0:
+#                     erosion = (erosion - erosion.min()) / erosion.ptp()
 
-                # save erosion and add to loss
-                bound[batch] = erosion
-                eroted[batch] += erosion * (k + 1) ** self.alpha
+#                 # save erosion and add to loss
+#                 bound[batch] = erosion
+#                 eroted[batch] += erosion * (k + 1) ** self.alpha
 
-                if debug:
-                    erosions.append(np.copy(erosion[0]))
+#                 if debug:
+#                     erosions.append(np.copy(erosion[0]))
 
-        # image visualization in debug mode
-        if debug:
-            return eroted, erosions
-        else:
-            return eroted
+#         # image visualization in debug mode
+#         if debug:
+#             return eroted, erosions
+#         else:
+#             return eroted
 
-    def forward(self, pred: torch.Tensor, target: torch.Tensor, debug=False) -> torch.Tensor:
-        """
-        Uses one binary channel: 1 - fg, 0 - bg
-        pred: (b, 1, x, y, z) or (b, 1, x, y)
-        target: (b, 1, x, y, z) or (b, 1, x, y)
-        """
-        target = target.unsqueeze(1)
-        if pred.dim() not in (4, 5):
-            raise AssertionError("Only 2D and 3D supported")
-        if (pred.dim() != target.dim()):
-            raise AssertionError("Prediction and target need to be of same dimension")
+#     def forward(self, pred: torch.Tensor, target: torch.Tensor, debug=False) -> torch.Tensor:
+#         """
+#         Uses one binary channel: 1 - fg, 0 - bg
+#         pred: (b, 1, x, y, z) or (b, 1, x, y)
+#         target: (b, 1, x, y, z) or (b, 1, x, y)
+#         """
+#         target = target.unsqueeze(1)
+#         if pred.dim() not in (4, 5):
+#             raise AssertionError("Only 2D and 3D supported")
+#         if (pred.dim() != target.dim()):
+#             raise AssertionError("Prediction and target need to be of same dimension")
 
-        pred = torch.sigmoid(pred)
+#         pred = torch.sigmoid(pred)
 
-        if debug:
-            eroted, erosions = self.perform_erosion(pred.detach().cpu().numpy(), target.detach().cpu().numpy(), debug)
-            return eroted.mean(), erosions
+#         if debug:
+#             eroted, erosions = self.perform_erosion(pred.detach().cpu().numpy(), target.detach().cpu().numpy(), debug)
+#             return eroted.mean(), erosions
 
-        else:
-            eroted = torch.from_numpy(self.perform_erosion(pred.detach().cpu().numpy(), target.detach().cpu().numpy(), debug)).float()
+#         else:
+#             eroted = torch.from_numpy(self.perform_erosion(pred.detach().cpu().numpy(), target.detach().cpu().numpy(), debug)).float()
 
-            loss = eroted.mean()
+#             loss = eroted.mean()
 
-            return loss
+#             return loss
 
 
 # ====================== #
