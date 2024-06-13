@@ -24,3 +24,6 @@ Source Code
 Some parts of the source code can be downloaded from the link below.
 Please place them under the geneformer/ folder before running gene_classification_pancreas.ipynb and cell_classification_pancreas.ipynb:
 https://drive.google.com/file/d/1JMp_n15m0tQvCTAL7TvQ6vpj14jkVGgO/view?usp=drive_link
+
+ For eg:- perturber_utils.py should be geneformer/perturber_utils.py
+ 
