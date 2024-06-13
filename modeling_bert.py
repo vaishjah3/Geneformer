@@ -25,10 +25,12 @@ import torch
 import torch.utils.checkpoint
 from packaging import version
 from torch import nn
-# me ----------
-from losses import BCEDiceLoss, ComboBCEDiceLoss
+
+# Loss ----------
+
 import torch
 import torch.nn as nn
+
 class FocalLoss(nn.Module):
     def __init__(self, alpha=1, gamma=2, reduction='mean'):
         super(FocalLoss, self).__init__()
@@ -47,38 +49,40 @@ class FocalLoss(nn.Module):
             return focal_loss.mean()
         elif self.reduction == 'sum':
             return focal_loss.sum()
-# class DiceLoss(nn.Module):
-#     def __init__(self, smooth=1e-6):
-#         super(DiceLoss, self).__init__()
-#         self.smooth = smooth
+        
+        
+class DiceLoss(nn.Module):
+    def __init__(self, smooth=1e-6):
+        super(DiceLoss, self).__init__()
+        self.smooth = smooth
 
-#     def forward(self, logits, targets):
-#         # Convert logits to probabilities using sigmoid
-#         probs = torch.sigmoid(logits)
+    def forward(self, logits, targets):
+        # Convert logits to probabilities using sigmoid
+        probs = torch.sigmoid(logits)
+        
+        # Check if targets are not one-hot encoded, then convert to one-hot encoding
+        if targets.dim() == 1 or targets.size(-1) == 1:
+            targets = nn.functional.one_hot(targets, num_classes=probs.size(-1))
+        
+        # Ensure logits and targets have the same shape
+        if probs.size() != targets.size():
+            raise ValueError(f"Shape mismatch: logits has shape {probs.size()} but targets has shape {targets.size()}")
 
-#         # Check if targets are not one-hot encoded, then convert to one-hot encoding
-#         if targets.dim() == 1 or targets.size(-1) == 1:
-#             targets = nn.functional.one_hot(targets, num_classes=probs.size(-1))
+        # Flatten the tensors
+        probs_flat = probs.view(-1)
+        targets_flat = targets.view(-1)
 
-#         # Ensure logits and targets have the same shape
-#         if probs.size() != targets.size():
-#             raise ValueError(f"Shape mismatch: logits has shape {probs.size()} but targets has shape {targets.size()}")
+        # Calculate intersection and union
+        intersection = (probs_flat * targets_flat).sum()
+        union = probs_flat.sum() + targets_flat.sum()
 
-#         # Flatten the tensors
-#         probs_flat = probs.view(-1)
-#         targets_flat = targets.view(-1)
+        # Compute Dice coefficient
+        dice_coefficient = (2. * intersection + self.smooth) / (union + self.smooth)
+        
+        # Return Dice loss
+        return 1 - dice_coefficient
 
-#         # Calculate intersection and union
-#         intersection = (probs_flat * targets_flat).sum()
-#         union = probs_flat.sum() + targets_flat.sum()
-
-#         # Compute Dice coefficient
-#         dice_coefficient = (2. * intersection + self.smooth) / (union + self.smooth)
-
-#         # Return Dice loss
-#         return 1 - dice_coefficient
-
-# me ----------
+#  ----------
 
 from torch.nn import BCEWithLogitsLoss, CrossEntropyLoss, MSELoss
 
@@ -1788,11 +1792,11 @@ class BertForSequenceClassification(BertPreTrainedModel):
                     loss = loss_fct(logits, labels)
             elif self.config.problem_type == "single_label_classification":
                 #loss_fct = CrossEntropyLoss()
-                loss_fct = DiceLoss() # me
+                loss_fct = FocalLoss() # me
                 loss = loss_fct(logits.view(-1, self.num_labels), labels.view(-1))
             elif self.config.problem_type == "multi_label_classification":
                 #loss_fct = BCEWithLogitsLoss()
-                loss_fct = BCEDiceLoss() # me
+                loss_fct = FocalLoss() # me
                 loss = loss_fct(logits, labels)
         if not return_dict:
             output = (logits,) + outputs[2:]
