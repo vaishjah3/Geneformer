@@ -21,11 +21,14 @@ from modeling_bert import (
     BertForMaskedLM,
     BertForSequenceClassification,
     BertForTokenClassification,
-) 
+    ) 
 
 sns.set()
 
 logger = logging.getLogger(__name__)
+
+
+Quantization = False
 
 
 # load data and filter by defined criteria
@@ -134,6 +137,10 @@ def load_model(model_type, num_classes, model_directory, mode):
             output_hidden_states=output_hidden_states,
             output_attentions=False,
         )
+        if Quantization == True:
+            model = torch.quantization.quantize_dynamic(
+                model, {torch.nn.Linear}, dtype=torch.qint8)
+            
     elif model_type == "CellClassifier":
         model = BertForSequenceClassification.from_pretrained(
             model_directory,
@@ -141,6 +148,10 @@ def load_model(model_type, num_classes, model_directory, mode):
             output_hidden_states=output_hidden_states,
             output_attentions=False,
         )
+        if Quantization == True:
+            model = torch.quantization.quantize_dynamic(
+                model, {torch.nn.Linear}, dtype=torch.qint8)
+            
     # if eval mode, put the model in eval mode for fwd pass
     if mode == "eval":
         model.eval()
